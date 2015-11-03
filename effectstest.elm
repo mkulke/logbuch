@@ -32,9 +32,14 @@ init : (Model, Effects Action)
 init =
   ( Model "default" False 0, Effects.none )
 
+type alias UserResult =
+  { name : String
+  , no   : Int
+  }
+
 type Action = Noop
             | RequestName
-            | NewName Int (Maybe String)
+            | NewName (Maybe UserResult)
 
 actions : Mailbox Action
 actions =
@@ -42,11 +47,17 @@ actions =
 
 update : Action -> Model -> (Model, Effects Action)
 update action model =
+  let errorResult = UserResult "Oh my!" -1
+      result = \maybe -> Maybe.withDefault errorResult maybe
+      name = result >> .name
+      no = result >> .no
+      resultModel = \maybe -> Model (name maybe) False (no maybe)
+  in
   case action of
     RequestName ->
       ({ model | isFetching <- True }, fetchUsername (model.userNo + 1))
-    NewName userNo maybeName ->
-      (Model (Maybe.withDefault "Oh my!" maybeName) False userNo, Effects.none)
+    NewName maybe ->
+      (resultModel maybe, Effects.none)
 
 view : Signal.Address Action -> Model -> Html
 view address model =
@@ -59,8 +70,9 @@ fetchUsername : Int -> Effects Action
 fetchUsername userNo =
   let url = "http://jsonplaceholder.typicode.com/users/" ++ (toString userNo)
   in Http.get decodeName url
+    |> Task.map (\string -> UserResult string userNo)
     |> Task.toMaybe
-    |> Task.map (NewName userNo)
+    |> Task.map NewName
     |> Effects.task
 
 decodeName : Json.Decoder (String)
