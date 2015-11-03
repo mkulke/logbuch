@@ -23,23 +23,24 @@ port tasks =
   app.tasks
 
 type alias Model =
-  { name       : String
+  { user       : User
   , isFetching : Bool
-  , userNo     : Int
+  , error      : Error
   }
+
+type User = EmptyUser
+          | FetchedUser String Int
+
+type Error = NoError
+           | UserError Int
 
 init : (Model, Effects Action)
 init =
-  ( Model "default" False 0, Effects.none )
-
-type alias UserResult =
-  { name : String
-  , no   : Int
-  }
+  ( Model EmptyUser False NoError, Effects.none )
 
 type Action = Noop
             | RequestName
-            | NewName (Maybe UserResult)
+            | NewName (Result Error User)
 
 actions : Mailbox Action
 actions =
@@ -47,31 +48,58 @@ actions =
 
 update : Action -> Model -> (Model, Effects Action)
 update action model =
-  let errorResult = UserResult "Oh my!" -1
-      result = \maybe -> Maybe.withDefault errorResult maybe
-      name = result >> .name
-      no = result >> .no
-      resultModel = \maybe -> Model (name maybe) False (no maybe)
+  let noToFetch =
+    case model.error of
+      NoError ->
+        case model.user of
+          EmptyUser -> 1
+          FetchedUser string no -> no + 1
+      UserError no -> no
   in
   case action of
     RequestName ->
-      ({ model | isFetching <- True }, fetchUsername (model.userNo + 1))
-    NewName maybe ->
-      (resultModel maybe, Effects.none)
+      ( { model | isFetching <- True }, fetchUsername noToFetch )
+    NewName result ->
+      case result of
+        Err userError ->
+          ( Model EmptyUser False userError, Effects.none )
+        Ok fetchedUser ->
+          ( Model fetchedUser False NoError, Effects.none )
 
 view : Signal.Address Action -> Model -> Html
 view address model =
+  let userText =
+        case model.user of
+          EmptyUser ->
+            "Click fetch plz."
+          FetchedUser name userNo ->
+            toString userNo ++ ": " ++ name
+      errorParagraph =
+        case model.error of
+          UserError userNo ->
+            [
+              p [ style [ ("bg-color", "red") ] ]
+              [ text ("Could not fetch user no " ++ toString userNo) ]
+            ]
+          NoError ->
+            []
+  in
   div [ style [ ("padding", "20px") ] ]
-    [ p [] [ text (toString model.userNo ++ ": " ++ model.name) ]
-    , button [ onClick address RequestName, disabled model.isFetching ] [ text "Fetch" ]
-    ]
+    (
+      [ p [] [ text userText ]
+      , button [ onClick address RequestName, disabled model.isFetching ] [ text "Fetch" ]
+      ]
+      ++
+      errorParagraph
+    )
 
 fetchUsername : Int -> Effects Action
 fetchUsername userNo =
   let url = "http://jsonplaceholder.typicode.com/users/" ++ (toString userNo)
   in Http.get decodeName url
-    |> Task.map (\string -> UserResult string userNo)
-    |> Task.toMaybe
+    |> Task.map (\string -> FetchedUser string userNo)
+    |> Task.mapError (\e -> UserError userNo)
+    |> Task.toResult
     |> Task.map NewName
     |> Effects.task
 
