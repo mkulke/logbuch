@@ -52,13 +52,13 @@ update action model =
     case model.error of
       NoError ->
         case model.user of
-          EmptyUser -> 1
+          EmptyUser -> 8
           FetchedUser string no -> no + 1
       UserError no -> no
   in
   case action of
     RequestName ->
-      ( { model | isFetching <- True }, fetchUsername noToFetch )
+      ( { model | isFetching <- True, error <- NoError }, fetchUsername noToFetch )
     NewName result ->
       case result of
         Err userError ->
@@ -78,7 +78,7 @@ view address model =
         case model.error of
           UserError userNo ->
             [
-              p [ style [ ("bg-color", "red") ] ]
+              p [ style [ ("background-color", "red") ] ]
               [ text ("Could not fetch user no " ++ toString userNo) ]
             ]
           NoError ->
