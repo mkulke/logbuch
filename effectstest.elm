@@ -1,3 +1,5 @@
+module EffectsTest (main) where
+
 import Html                exposing (Attribute, Html, p, div, button, text)
 import Html.Events         exposing (..)
 import Html.Attributes     exposing (..)
