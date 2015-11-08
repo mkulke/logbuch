@@ -1,6 +1,6 @@
-module EffectsTest (main) where
+module Mgns where
 
-import Html                exposing (Attribute, Html, p, div, button, text)
+import Html                exposing (Attribute, Html, h1,  h4, p, div, button, text, span)
 import Html.Events         exposing (..)
 import Html.Attributes     exposing (..)
 import Signal              exposing (..)
@@ -23,6 +23,11 @@ main =
 port tasks : Signal (Task.Task Never ())
 port tasks =
   app.tasks
+
+port showModal : Signal Bool
+port showModal =
+  Signal.map (\m -> m.error /= NoError) app.model
+    |> Signal.dropRepeats
 
 type alias Model =
   { user       : User
@@ -68,6 +73,10 @@ update action model =
         Ok fetchedUser ->
           ( Model fetchedUser False NoError, Effects.none )
 
+dataDismiss : Attribute
+dataDismiss =
+  attribute "data-dismiss" "modal"
+
 view : Signal.Address Action -> Model -> Html
 view address model =
   let userText =
@@ -76,24 +85,41 @@ view address model =
             "Click fetch plz."
           FetchedUser name userNo ->
             toString userNo ++ ": " ++ name
-      errorParagraph =
+      errorMsg =
         case model.error of
           UserError userNo ->
-            [
-              p [ style [ ("background-color", "red") ] ]
-              [ text ("Could not fetch user no " ++ toString userNo) ]
-            ]
+            "Could not fetch user no " ++ toString userNo
           NoError ->
-            []
+            ""
+      errorModal =
+        div [ id "error-modal", class "modal fade in" ]
+          [ div [ class "modal-dialog modal-sm" ]
+            [ div [ class "modal-content" ]
+              [ div [ class "modal-header" ]
+                [ button [ dataDismiss, class "close" ] [ span [] [ text "×" ] ]
+                , h4 [ class "modal-title" ] [ text "Error" ]
+                ]
+              , div [ class "modal-body" ] [ p []
+                  [ text errorMsg ]
+                ]
+              ]
+            ]
+          ]
   in
-  div [ style [ ("padding", "20px") ] ]
-    (
-      [ p [] [ text userText ]
-      , button [ onClick address RequestName, disabled model.isFetching ] [ text "Fetch" ]
+  div []
+    [ div [ class "container" ]
+      [ div [ class "row" ] [ h1 [] [ text "Mgns" ] ]
+      , div [ class "row" ]
+        [ p [] [ text userText ]
+        , button [ onClick address RequestName, disabled model.isFetching
+                 , classList [ ("btn", True)
+                             , ("btn-primary", True)
+                             ]
+                 ] [ text "Fetch" ]
+        ]
       ]
-      ++
-      errorParagraph
-    )
+    , div [] [ errorModal ]
+    ]
 
 fetchUsername : Int -> Effects Action
 fetchUsername userNo =
